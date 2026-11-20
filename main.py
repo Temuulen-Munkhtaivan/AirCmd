@@ -11,11 +11,40 @@ HAND_CONNECTIONS = [
     (9, 13), (13, 14), (14, 15), (15, 16), # Ring
     (0, 17), (13, 17), (17, 18), (18, 19), (19, 20) # Pinky
 ]
+
 def distance(point1, point2):
     return math.hypot(
         point1.x - point2.x,
         point1.y - point2.y
     )
+
+def joint_angle(a, b, c):
+    ab = distance(a, b)
+    bc = distance(b, c)
+    ac = distance(a, c)
+
+    if ab == 0 or bc == 0:
+        return 0
+
+    cosine = (ab**2 + bc**2 - ac**2) / (2 * ab * bc)
+
+    cosine = max(-1.0, min(1.0, cosine))
+
+    return math.degrees(math.acos(cosine))
+
+def is_finger_extended(hand, mcp, pip, tip):
+    tip_distance = distance(hand[tip], hand[mcp])
+    joint_distance = distance(hand[pip], hand[mcp])
+
+    angle = joint_angle(hand[mcp], hand[pip], hand[tip])
+
+    return tip_distance > joint_distance * 1.6 and angle > 155
+
+def is_thumb_extended(hand):
+    tip_to_pinky = distance(hand[4], hand[17])
+    base_to_pinky = distance(hand[2], hand[17])
+
+    return tip_to_pinky > base_to_pinky * 1.25
 
 def main():
     camera = cv2.VideoCapture(0)
@@ -76,6 +105,8 @@ def main():
             hand_count = len(result.hand_landmarks)
             # Get the camera frame dimensions
             height, width = frame.shape[:2]
+            
+            gesture = "NONE"
 
             # Loop through detected hands
             for hand in result.hand_landmarks:
@@ -102,28 +133,57 @@ def main():
                 for point in points:
                     cv2.circle(frame, point, 4, (0, 255, 0), -1)
                     
-                # Index finger landmarks
-                index_tip = hand[8]
-                index_pip = hand[6]
-                index_mcp = hand[5]
+                # Landmark indices for four fingers
+                finger_ids = [
+                    (5, 6, 8),      # Index
+                    (9, 10, 12),    # Middle
+                    (13, 14, 16),   # Ring
+                    (17, 18, 20)    # Pinky
+                ]
 
-                # Measure distances from the finger base
-                tip_distance = distance(index_tip, index_mcp)
-                joint_distance = distance(index_pip, index_mcp)
+                extended_count = 0
+                
+                thumb_extended = is_thumb_extended(hand)
 
-                # Check whether the index finger is extended
-                index_extended = tip_distance > joint_distance * 1.6
-
-                # Display the result
-                status = "EXTENDED" if index_extended else "BENT"
+                thumb_status = "EXTENDED" if thumb_extended else "FOLDED"
 
                 cv2.putText(
                     frame,
-                    f"Index finger: {status}",
+                    f"Thumb: {thumb_status}",
+                    (20, 110),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 255),
+                    2
+                )
+
+                # Check each finger
+                for mcp, pip, tip in finger_ids:
+                    if is_finger_extended(hand, mcp, pip, tip):
+                        extended_count += 1
+                        
+                # Check the complete gesture AFTER counting
+                if extended_count == 4 and thumb_extended:
+                    gesture = "OPEN PALM"
+
+                # Display how many fingers are extended
+                cv2.putText(
+                    frame,
+                    f"Extended fingers: {extended_count}/4",
                     (20, 80),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.7,
                     (0, 255, 255),
+                    2
+                )
+
+            cv2.putText(
+                    frame,
+                    f"Gesture: {gesture}",
+                    (20, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 255, 0),
                     2
                 )
             cv2.imshow("AirCmd", frame)
