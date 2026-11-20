@@ -3,6 +3,7 @@ import mediapipe as mp
 from pathlib import Path
 import time
 import math
+import subprocess
 
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),       # Thumb
@@ -48,6 +49,13 @@ def is_thumb_extended(hand):
     base_to_pinky = distance(hand[2], hand[17])
 
     return tip_to_pinky > base_to_pinky * 1.25
+
+def open_notepad():
+    subprocess.Popen(["notepad.exe"])
+
+def run_macro():
+    open_notepad()
+    subprocess.Popen(["calc.exe"])
 
 def main():
     camera = cv2.VideoCapture(0)
@@ -203,6 +211,7 @@ def main():
                         if now - last_activation_time >= COOLDOWN_SECONDS:
                             activation_count += 1
                             last_activation_time = now
+                            run_macro()
                 else:
                     hold_status = f"HOLDING: {held_seconds:.1f}s"
 
