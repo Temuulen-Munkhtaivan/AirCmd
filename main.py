@@ -2,6 +2,7 @@ import cv2
 import mediapipe as mp
 from pathlib import Path
 import time
+import math
 
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),       # Thumb
@@ -10,6 +11,11 @@ HAND_CONNECTIONS = [
     (9, 13), (13, 14), (14, 15), (15, 16), # Ring
     (0, 17), (13, 17), (17, 18), (18, 19), (19, 20) # Pinky
 ]
+def distance(point1, point2):
+    return math.hypot(
+        point1.x - point2.x,
+        point1.y - point2.y
+    )
 
 def main():
     camera = cv2.VideoCapture(0)
@@ -95,6 +101,31 @@ def main():
                 # Draw green circles over the lines
                 for point in points:
                     cv2.circle(frame, point, 4, (0, 255, 0), -1)
+                    
+                # Index finger landmarks
+                index_tip = hand[8]
+                index_pip = hand[6]
+                index_mcp = hand[5]
+
+                # Measure distances from the finger base
+                tip_distance = distance(index_tip, index_mcp)
+                joint_distance = distance(index_pip, index_mcp)
+
+                # Check whether the index finger is extended
+                index_extended = tip_distance > joint_distance * 1.6
+
+                # Display the result
+                status = "EXTENDED" if index_extended else "BENT"
+
+                cv2.putText(
+                    frame,
+                    f"Index finger: {status}",
+                    (20, 80),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 255),
+                    2
+                )
             cv2.imshow("AirCmd", frame)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
