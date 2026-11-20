@@ -12,6 +12,9 @@ HAND_CONNECTIONS = [
     (0, 17), (13, 17), (17, 18), (18, 19), (19, 20) # Pinky
 ]
 
+HOLD_SECONDS = 0.5
+COOLDOWN_SECONDS = 2.0
+
 def distance(point1, point2):
     return math.hypot(
         point1.x - point2.x,
@@ -74,6 +77,10 @@ def main():
         
         detector = mp.tasks.vision.HandLandmarker.create_from_options(options)
         last_timestamp_ms = -1
+        hold_start = None
+        gesture_triggered = False
+        activation_count = 0
+        last_activation_time = float("-inf")
         while True:
             success, frame = camera.read()
 
@@ -176,6 +183,33 @@ def main():
                     (0, 255, 255),
                     2
                 )
+                
+            # Check how long the gesture has been held
+            if gesture == "OPEN PALM":
+
+                if hold_start is None:
+                    hold_start = time.monotonic()
+
+                held_seconds = time.monotonic() - hold_start
+
+                if held_seconds >= HOLD_SECONDS:
+                    hold_status = "CONFIRMED"
+
+                    if not gesture_triggered:
+                        gesture_triggered = True
+
+                        now = time.monotonic()
+
+                        if now - last_activation_time >= COOLDOWN_SECONDS:
+                            activation_count += 1
+                            last_activation_time = now
+                else:
+                    hold_status = f"HOLDING: {held_seconds:.1f}s"
+
+            else:
+                hold_start = None
+                gesture_triggered = False
+                hold_status = "WAITING"
 
             cv2.putText(
                     frame,
@@ -186,6 +220,24 @@ def main():
                     (0, 255, 0),
                     2
                 )
+            cv2.putText(
+                frame,
+                f"Hold: {hold_status}",
+                (20, 185),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2
+            )
+            cv2.putText(
+                frame,
+                f"Activations: {activation_count}",
+                (20, 220),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2
+            )
             cv2.imshow("AirCmd", frame)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
